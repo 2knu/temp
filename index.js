@@ -1,65 +1,64 @@
-require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const dns = require("dns");
+const express = require('express')
+const app = express()
+const cors = require('cors')
 const bodyParser = require("body-parser");
-const shortUrlDb = require("./short-url-db");
-const app = express();
+const userDB = require("./user-db");
+require('dotenv').config()
 
-// Basic Configuration
-const port = process.env.PORT || 3000;
-
-app.use(cors());
-
-app.use('/public', express.static(`${process.cwd()}/public`));
-
-app.get('/', function (req, res) {
-  res.sendFile(process.cwd() + '/views/index.html');
+app.use(cors())
+app.use(express.static('public'))
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/views/index.html')
 });
-
-function shorturlHandler(req, res) {
-  const url = req.body.url;
-  dns.lookup(url, (err, address, family) => {
-    if (err) {
-      res.json({
-        error: "invalid url"
-      })
-
-    } else {
-      const shortUrl = shortUrlDb.create(url);
-      res.json({
-        original_url: url,
-        short_url: shortUrl
-      })
-    }
-  })
-}
 
 app.use(bodyParser.urlencoded({ extended: false }))
-app.post("/api/shorturl", shorturlHandler);
 
-function shorturlRedirectHandler(req, res) {
-  const id = req.params.id;
-  if (shortUrlDb.isValidID(id)) {
-    const url = shortUrlDb.getURL(id);
-    console.log(url);
-    if (url) {
-      res.redirect(url);
-    } else {
-      res.json({ error: "No short URL found for the given input" });
-    }
-  } else {
-    res.json({ error: "Wrong format" });
-  }
+function userListHandler(req, res) {
+  res.json(userDB.userList());
 }
 
-app.get("/api/shorturl/:id", shorturlRedirectHandler);
+app.get("/api/users", userListHandler);
 
-// Your first API endpoint
-app.get('/api/hello', function (req, res) {
-  res.json({ greeting: 'hello API' });
-});
+function createUsersHandler(req, res) {
+  const user = userDB.createUser(req.body.username);
+  console.log("user", user)
+  res.json(user);
+}
+app.post("/api/users", createUsersHandler);
 
-app.listen(port, function () {
-  console.log(`Listening on port ${port}`);
-});
+function createUserExercises(req, res) {
+  console.log(userDB);
+  const userId = req.params._id;
+  const description = req.body.description;
+  const duration = parseInt(req.body.duration);
+  let date = req.body.date || Date.now();
+  date = new Date(date);
+  const user = userDB.getUserByID(userId);
+  if (user) {
+    res.json(user.createExercise(description, duration, date));
+  } else {
+    res.json({ error: "not found" })
+  }
+}
+app.post("/api/users/:_id/exercises", createUserExercises);
+
+function logsHandler(req, res) {
+  const userId = req.params._id;
+  const user = userDB.getUserByID(userId);
+  const from = new Date(req.query.from);
+  const to = new Date(req.query.to);
+  const limit = parseInt(req.query.limit);
+  console.log("LOGS: ", req.query, from, to, limit);
+  if (user) {
+    res.json(user.exerciseLog(from, to, limit));
+  } else {
+    res.json({ error: "not found" })
+  }
+}
+app.get("/api/users/:_id/logs", logsHandler);
+
+
+
+const listener = app.listen(process.env.PORT || 3000, () => {
+  console.log('Your app is listening on port ' + listener.address().port)
+})
