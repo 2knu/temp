@@ -1,44 +1,65 @@
-// index.js
-// where your node app starts
-
-// init project
 require('dotenv').config();
-var express = require('express');
-var app = express();
+const express = require('express');
+const cors = require('cors');
+const dns = require("dns");
+const bodyParser = require("body-parser");
+const shortUrlDb = require("./short-url-db");
+const app = express();
 
-// enable CORS (https://en.wikipedia.org/wiki/Cross-origin_resource_sharing)
-// so that your API is remotely testable by FCC
-var cors = require('cors');
-app.use(cors({ optionsSuccessStatus: 200 })); // some legacy browsers choke on 204
+// Basic Configuration
+const port = process.env.PORT || 3000;
 
-// http://expressjs.com/en/starter/static-files.html
-app.use(express.static('public'));
+app.use(cors());
 
-// http://expressjs.com/en/starter/basic-routing.html
+app.use('/public', express.static(`${process.cwd()}/public`));
+
 app.get('/', function (req, res) {
-  res.sendFile(__dirname + '/views/index.html');
+  res.sendFile(process.cwd() + '/views/index.html');
 });
 
-function whoamiHandler(req, res) {
-  const ip = req.ip; 
-  const lang =  req.headers["accept-language"];
-  const software = req.headers["user-agent"];
+function shorturlHandler(req, res) {
+  const url = req.body.url;
+  dns.lookup(url, (err, address, family) => {
+    if (err) {
+      res.json({
+        error: "invalid url"
+      })
 
-  res.json({
-    ipaddress: ip,
-    language: lang,
-    software: software
+    } else {
+      const shortUrl = shortUrlDb.create(url);
+      res.json({
+        original_url: url,
+        short_url: shortUrl
+      })
+    }
   })
 }
 
-app.get('/api/whoami', whoamiHandler);
+app.use(bodyParser.urlencoded({ extended: false }))
+app.post("/api/shorturl", shorturlHandler);
 
-// your first API endpoint...
+function shorturlRedirectHandler(req, res) {
+  const id = req.params.id;
+  if (shortUrlDb.isValidID(id)) {
+    const url = shortUrlDb.getURL(id);
+    console.log(url);
+    if (url) {
+      res.redirect(url);
+    } else {
+      res.json({ error: "No short URL found for the given input" });
+    }
+  } else {
+    res.json({ error: "Wrong format" });
+  }
+}
+
+app.get("/api/shorturl/:id", shorturlRedirectHandler);
+
+// Your first API endpoint
 app.get('/api/hello', function (req, res) {
   res.json({ greeting: 'hello API' });
 });
 
-// listen for requests :)
-var listener = app.listen(process.env.PORT || 3000, function () {
-  console.log('Your app is listening on port ' + listener.address().port);
+app.listen(port, function () {
+  console.log(`Listening on port ${port}`);
 });
