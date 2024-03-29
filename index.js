@@ -1,64 +1,32 @@
-const express = require('express')
-const app = express()
-const cors = require('cors')
-const bodyParser = require("body-parser");
-const userDB = require("./user-db");
+var express = require('express');
+var cors = require('cors');
+const multer  = require('multer')
+const upload = multer({ dest: 'uploads/' })
 require('dotenv').config()
 
-app.use(cors())
-app.use(express.static('public'))
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/views/index.html')
+var app = express();
+
+app.use(cors());
+app.use('/public', express.static(process.cwd() + '/public'));
+
+app.get('/', function (req, res) {
+  res.sendFile(process.cwd() + '/views/index.html');
 });
 
-app.use(bodyParser.urlencoded({ extended: false }))
-
-function userListHandler(req, res) {
-  res.json(userDB.userList());
+function fileanalyseHandler(req, res, next) {
+  const file = req.file;
+  res.json({
+    name: file.originalname,
+    type: file.mimetype,
+    size: file.size
+  })
+  next();
 }
 
-app.get("/api/users", userListHandler);
-
-function createUsersHandler(req, res) {
-  const user = userDB.createUser(req.body.username);
-  console.log("user", user)
-  res.json(user);
-}
-app.post("/api/users", createUsersHandler);
-
-function createUserExercises(req, res) {
-  console.log(userDB);
-  const userId = req.params._id;
-  const description = req.body.description;
-  const duration = parseInt(req.body.duration);
-  let date = req.body.date || Date.now();
-  date = new Date(date);
-  const user = userDB.getUserByID(userId);
-  if (user) {
-    res.json(user.createExercise(description, duration, date));
-  } else {
-    res.json({ error: "not found" })
-  }
-}
-app.post("/api/users/:_id/exercises", createUserExercises);
-
-function logsHandler(req, res) {
-  const userId = req.params._id;
-  const user = userDB.getUserByID(userId);
-  const from = new Date(req.query.from);
-  const to = new Date(req.query.to);
-  const limit = parseInt(req.query.limit);
-  console.log("LOGS: ", req.query, from, to, limit);
-  if (user) {
-    res.json(user.exerciseLog(from, to, limit));
-  } else {
-    res.json({ error: "not found" })
-  }
-}
-app.get("/api/users/:_id/logs", logsHandler);
+app.post("/api/fileanalyse", upload.single('upfile'), fileanalyseHandler);
 
 
-
-const listener = app.listen(process.env.PORT || 3000, () => {
-  console.log('Your app is listening on port ' + listener.address().port)
-})
+const port = process.env.PORT || 3000;
+app.listen(port, function () {
+  console.log('Your app is listening on port ' + port)
+});
